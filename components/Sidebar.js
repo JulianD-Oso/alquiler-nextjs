@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 export default function Sidebar({
@@ -82,18 +83,11 @@ export default function Sidebar({
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-brand">
         <div className="brand-logo-wrap">
-          <div style={{
-            background: 'var(--primary)',
-            color: '#fff',
-            fontWeight: 800,
-            fontSize: collapsed ? '16px' : '22px',
-            fontFamily: 'var(--font-display)',
-            padding: collapsed ? '6px' : '10px 18px',
-            borderRadius: '12px',
-            letterSpacing: '1px'
-          }}>
-            JC
-          </div>
+          <img
+            src="/logo.png"
+            alt="Rentacar JC"
+            className="brand-logo"
+          />
         </div>
         <div className="brand-text">
           <h1>Rentacar JC</h1>

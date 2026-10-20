@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -123,8 +124,20 @@ export default function DashboardPage() {
     return (
       <div className="login-screen">
         <div style={{ textAlign: 'center', color: 'var(--ink)' }}>
-          <div className="login-brand-logo" style={{ animation: 'pulse 1.5s infinite' }}>JC</div>
-          <div style={{ marginTop: 12, fontWeight: 600 }}>Cargando Rentacar JC...</div>
+          <div className="brand-logo-wrap" style={{ display: 'inline-flex', marginBottom: 14, animation: 'pulse 1.5s infinite' }}>
+            <img
+              src="/logo.png"
+              alt="Rentacar JC"
+              style={{
+                width: 130,
+                height: 89,
+                display: 'block',
+                objectFit: 'cover',
+                borderRadius: 15,
+              }}
+            />
+          </div>
+          <div style={{ marginTop: 8, fontWeight: 600 }}>Cargando Rentacar JC...</div>
         </div>
       </div>
     );

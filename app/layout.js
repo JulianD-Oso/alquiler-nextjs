@@ -3,6 +3,9 @@ import './globals.css';
 export const metadata = {
   title: 'Rentacar JC — Panel Administrativo',
   description: 'Sistema integral de administración de alquiler de motos y carros',
+  icons: {
+    icon: '/logo.png',
+  },
 };
 
 export const viewport = {

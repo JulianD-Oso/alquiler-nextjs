@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import { useState } from 'react';
@@ -108,7 +109,19 @@ export default function LoginView({ onLoginSuccess }) {
     <div className="login-screen">
       <div className="login-card">
         <div className="login-header">
-          <div className="login-brand-logo">JC</div>
+          <div className="brand-logo-wrap" style={{ display: 'inline-flex', marginBottom: 16 }}>
+            <img
+              src="/logo.png"
+              alt="Rentacar JC"
+              style={{
+                width: 160,
+                height: 109,
+                display: 'block',
+                objectFit: 'cover',
+                borderRadius: 15,
+              }}
+            />
+          </div>
           <h1>Rentacar JC</h1>
           <p>Sistema de Gestión de Alquiler de Vehículos</p>
         </div>
