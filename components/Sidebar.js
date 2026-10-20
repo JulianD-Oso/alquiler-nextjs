@@ -110,7 +110,7 @@ export default function Sidebar({
       </nav>
 
       {usuario && (
-        <div className="sidebar-user-card">
+        <div className="sidebar-user-card" title={collapsed ? `${usuario.nombre || 'Usuario'} (${usuario.rol || 'admin'})` : undefined}>
           <div className="sidebar-user-avatar" title={usuario.nombre || usuario.correo}>
             {(usuario.nombre ? usuario.nombre.charAt(0) : 'U').toUpperCase()}
           </div>
