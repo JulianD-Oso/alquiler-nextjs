@@ -9,6 +9,8 @@ export default function Sidebar({
   toggleTheme,
   online,
   clock,
+  usuario,
+  onLogout,
 }) {
   const tabs = [
     {
@@ -112,6 +114,30 @@ export default function Sidebar({
           </button>
         ))}
       </nav>
+
+      {usuario && (
+        <div className="sidebar-user-card">
+          <div className="sidebar-user-avatar" title={usuario.nombre || usuario.correo}>
+            {(usuario.nombre ? usuario.nombre.charAt(0) : 'U').toUpperCase()}
+          </div>
+          <div className="sidebar-user-info">
+            <div className="sidebar-user-name" title={usuario.nombre}>{usuario.nombre}</div>
+            <span className="sidebar-user-role">{usuario.rol || 'admin'}</span>
+          </div>
+          {onLogout && (
+            <button
+              type="button"
+              className="sidebar-logout-btn"
+              onClick={onLogout}
+              title="Cerrar sesión"
+            >
+              <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ width: 17, height: 17 }}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="sidebar-footer">
         <span className="clock">{clock}</span>

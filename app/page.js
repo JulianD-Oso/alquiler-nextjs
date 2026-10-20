@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import ToastContainer from '@/components/ToastContainer';
+import LoginView from '@/components/LoginView';
 import VehiculosView from '@/components/VehiculosView';
 import ClientesView from '@/components/ClientesView';
 import AlquileresView from '@/components/AlquileresView';
@@ -12,6 +13,8 @@ import GastosView from '@/components/GastosView';
 import EstadisticasView from '@/components/EstadisticasView';
 
 export default function DashboardPage() {
+  const [usuario, setUsuario] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('vehiculos');
   const [collapsed, setCollapsed] = useState(false);
   const [theme, setTheme] = useState('light');
@@ -19,7 +22,28 @@ export default function DashboardPage() {
   const [clock, setClock] = useState('');
   const [toasts, setToasts] = useState([]);
 
-  // Inicializar Tema y Reloj
+  // 1. Comprobar sesión de usuario activa
+  useEffect(() => {
+    async function checkSession() {
+      try {
+        const res = await fetch('/api/auth/me');
+        const data = await res.json();
+        if (res.ok && data.ok && data.usuario) {
+          setUsuario(data.usuario);
+        } else {
+          setUsuario(null);
+        }
+      } catch {
+        setUsuario(null);
+      } finally {
+        setAuthLoading(false);
+      }
+    }
+
+    checkSession();
+  }, []);
+
+  // 2. Inicializar Tema y Reloj
   useEffect(() => {
     const savedTheme = localStorage.getItem('jc_theme');
     if (savedTheme === 'dark') {
@@ -55,7 +79,7 @@ export default function DashboardPage() {
     }
   }
 
-  // Comprobar estado de conexión con el backend
+  // 3. Comprobar estado de conexión con el backend
   useEffect(() => {
     async function checkHealth() {
       try {
@@ -83,6 +107,44 @@ export default function DashboardPage() {
     }, 4000);
   }
 
+  async function handleLogout() {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {
+      console.error('Error al cerrar sesión:', e);
+    } finally {
+      setUsuario(null);
+      showToast('Has cerrado sesión correctamente.', 'ok');
+    }
+  }
+
+  // Pantalla de carga mientras verifica sesión
+  if (authLoading) {
+    return (
+      <div className="login-screen">
+        <div style={{ textAlign: 'center', color: 'var(--ink)' }}>
+          <div className="login-brand-logo" style={{ animation: 'pulse 1.5s infinite' }}>JC</div>
+          <div style={{ marginTop: 12, fontWeight: 600 }}>Cargando Rentacar JC...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Si no está autenticado, mostrar pantalla de inicio de sesión
+  if (!usuario) {
+    return (
+      <>
+        <LoginView
+          onLoginSuccess={(u) => {
+            setUsuario(u);
+            showToast(`¡Bienvenido de nuevo, ${u.nombre || 'Administrador'}!`, 'ok');
+          }}
+        />
+        <ToastContainer toasts={toasts} />
+      </>
+    );
+  }
+
   return (
     <div className="app-shell">
       <Sidebar
@@ -94,6 +156,8 @@ export default function DashboardPage() {
         toggleTheme={toggleTheme}
         online={online}
         clock={clock}
+        usuario={usuario}
+        onLogout={handleLogout}
       />
 
       <main className="main-content">
