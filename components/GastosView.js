@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { fmtCOP, CATEGORIAS_GASTO_LABEL } from '@/lib/format';
+import { fmtCOP, CATEGORIAS_GASTO_LABEL, fmtFecha } from '@/lib/format';
 
 export default function GastosView({ showToast }) {
   const [gastos, setGastos] = useState([]);
@@ -169,7 +169,7 @@ export default function GastosView({ showToast }) {
             ) : (
               gastos.map((g) => (
                 <tr key={g.id}>
-                  <td>{g.fecha_gasto}</td>
+                  <td style={{ whiteSpace: 'nowrap', fontWeight: 500 }}>{fmtFecha(g.fecha_gasto)}</td>
                   <td>
                     <span className="plate" style={{ marginRight: '6px' }}>
                       <span className={`plate-tag ${g.vehiculo_tipo || 'carro'}`} />

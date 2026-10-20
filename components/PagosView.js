@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { fmtCOP } from '@/lib/format';
+import { fmtCOP, fmtFecha } from '@/lib/format';
 
 export default function PagosView({ showToast }) {
   const [pendientes, setPendientes] = useState([]);
@@ -122,7 +122,7 @@ export default function PagosView({ showToast }) {
                     </span>
                     <span style={{ fontSize: '12px', color: 'var(--ink-soft)' }}>{a.marca_modelo}</span>
                   </td>
-                  <td>{new Date(a.fecha_entrega).toLocaleDateString('es-CO')}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{fmtFecha(a.fecha_entrega)}</td>
                   <td>{fmtCOP.format(a.precio_total)}</td>
                   <td>{fmtCOP.format(a.total_pagado || 0)}</td>
                   <td>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { fmtCOP } from '@/lib/format';
+import { fmtCOP, fmtFecha } from '@/lib/format';
 
 export default function AlquileresView({ showToast }) {
   const [vista, setVista] = useState('activo'); // 'activo' | 'historial'
@@ -226,8 +226,8 @@ export default function AlquileresView({ showToast }) {
                     </span>
                     <span style={{ fontSize: '12px', color: 'var(--ink-soft)' }}>{a.marca_modelo}</span>
                   </td>
-                  <td>{new Date(a.fecha_entrega).toLocaleDateString('es-CO')}</td>
-                  <td>{new Date(a.fecha_devolucion_programada).toLocaleDateString('es-CO')}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{fmtFecha(a.fecha_entrega)}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{fmtFecha(a.fecha_devolucion_programada)}</td>
                   <td>{a.dias}</td>
                   <td><strong>{fmtCOP.format(a.precio_total)}</strong></td>
                   {vista === 'activo' && <td>{fmtCOP.format(a.total_pagado || 0)}</td>}
@@ -374,9 +374,9 @@ export default function AlquileresView({ showToast }) {
                   <span className="k">Vehículo</span>
                   <span className="v">{detalle.marca_modelo} — {detalle.placa}</span>
                   <span className="k">Entrega</span>
-                  <span className="v">{new Date(detalle.fecha_entrega).toLocaleString('es-CO')}</span>
+                  <span className="v">{fmtFecha(detalle.fecha_entrega)}</span>
                   <span className="k">Devolución programada</span>
-                  <span className="v">{new Date(detalle.fecha_devolucion_programada).toLocaleDateString('es-CO')}</span>
+                  <span className="v">{fmtFecha(detalle.fecha_devolucion_programada)}</span>
                   <span className="k">Días pactados</span>
                   <span className="v">{detalle.dias}</span>
                   <span className="k">Valor total</span>
@@ -420,7 +420,7 @@ export default function AlquileresView({ showToast }) {
                     <tbody>
                       {detalle.pagos.map((p) => (
                         <tr key={p.id}>
-                          <td>{new Date(p.fecha_pago).toLocaleDateString('es-CO')}</td>
+                          <td>{fmtFecha(p.fecha_pago)}</td>
                           <td><strong>{fmtCOP.format(p.monto)}</strong></td>
                           <td style={{ textTransform: 'capitalize' }}>{p.metodo || '—'}</td>
                           <td>{p.observaciones || '—'}</td>

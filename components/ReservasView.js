@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { fmtCOP, estadoLabel } from '@/lib/format';
+import { fmtCOP, estadoLabel, fmtFecha } from '@/lib/format';
 
 export default function ReservasView({ showToast }) {
   const [reservas, setReservas] = useState([]);
@@ -177,8 +177,8 @@ export default function ReservasView({ showToast }) {
                     </span>
                     <span style={{ fontSize: '12px', color: 'var(--ink-soft)' }}>{r.marca_modelo}</span>
                   </td>
-                  <td>{r.fecha_inicio}</td>
-                  <td>{r.fecha_fin}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{fmtFecha(r.fecha_inicio)}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{fmtFecha(r.fecha_fin)}</td>
                   <td><strong>{fmtCOP.format(r.monto_abono)}</strong></td>
                   <td>
                     <span className={`pill ${r.estado === 'activa' ? 'disponible' : r.estado === 'convertida' ? 'alquilado' : 'fuera_de_servicio'}`}>
