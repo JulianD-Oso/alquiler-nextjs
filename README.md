@@ -4,7 +4,7 @@ Sistema integral de gestión y administración de alquiler de motos y carros par
 
 ---
 
-## 🚀 Características y Módulos Migrados
+##  Características y Módulos Migrados
 
 1. **Vehículos**: Control de flota (motos y carros), placas personalizadas, tarifas por día, estados automáticos y manuales (disponible, alquilado, mantenimiento, fuera de servicio).
 2. **Clientes**: Registro con código incremental automático (`CL01`, `CL02`), validación de licencias y buscador en tiempo real.
@@ -57,7 +57,7 @@ cd alquiler-nextjs
 DATABASE_URL="postgresql://tu-url-de-neon..." bun run db:init
 ```
 
-Verás el mensaje: `✅ Esquema creado exitosamente en PostgreSQL (tablas, índices y vistas)`.
+Verás el mensaje: ` Esquema creado exitosamente en PostgreSQL (tablas, índices y vistas)`.
 
 ### Paso 3: Subir a GitHub y Conectar con Vercel
 
@@ -73,7 +73,7 @@ Verás el mensaje: `✅ Esquema creado exitosamente en PostgreSQL (tablas, índi
 
 ---
 
-## 📁 Estructura del Proyecto
+##  Estructura del Proyecto
 
 ```
 alquiler-nextjs/
