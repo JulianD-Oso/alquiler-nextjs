@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { handleApiError } from '@/lib/errors';
 import { saveSignatureFile } from '@/lib/storage';
+import {
+  toDateISO,
+  calcularDiasEntreFechas,
+  verificarDisponibilidadFechas,
+  sincronizarEstadoVehiculoHoy,
+} from '@/lib/calendarioDb';
 
 export async function GET(request) {
   try {
@@ -52,13 +58,15 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const contentType = request.headers.get('content-type') || '';
-    let cliente_id, vehiculo_id, dias, observaciones, firmaFile;
+    let cliente_id, vehiculo_id, dias, fecha_entrega_input, fecha_devolucion_input, observaciones, firmaFile;
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
       cliente_id = formData.get('cliente_id');
       vehiculo_id = formData.get('vehiculo_id');
       dias = formData.get('dias');
+      fecha_entrega_input = formData.get('fecha_entrega') || formData.get('fecha_inicio');
+      fecha_devolucion_input = formData.get('fecha_devolucion_programada') || formData.get('fecha_fin');
       observaciones = formData.get('observaciones');
       firmaFile = formData.get('firma');
     } else {
@@ -66,32 +74,45 @@ export async function POST(request) {
       cliente_id = body.cliente_id;
       vehiculo_id = body.vehiculo_id;
       dias = body.dias;
+      fecha_entrega_input = body.fecha_entrega || body.fecha_inicio;
+      fecha_devolucion_input = body.fecha_devolucion_programada || body.fecha_fin;
       observaciones = body.observaciones;
     }
 
-    if (!cliente_id || !vehiculo_id || dias === undefined || dias === null) {
+    if (!cliente_id || !vehiculo_id) {
       return NextResponse.json(
-        { error: 'cliente_id, vehiculo_id y dias son obligatorios.' },
-        { status: 400 }
-      );
-    }
-    const diasNum = parseInt(dias, 10);
-    if (!Number.isInteger(diasNum) || diasNum <= 0) {
-      return NextResponse.json(
-        { error: 'dias debe ser un número entero mayor a 0.' },
+        { error: 'cliente_id y vehiculo_id son obligatorios.' },
         { status: 400 }
       );
     }
 
-    const vehiculo = await db.query('SELECT id, precio_dia, estado FROM vehiculos WHERE id = $1', [vehiculo_id]);
-    if (vehiculo.rows.length === 0) {
-      return NextResponse.json({ error: 'Vehículo no encontrado.' }, { status: 404 });
-    }
-    if (vehiculo.rows[0].estado !== 'disponible') {
-      return NextResponse.json(
-        { error: `El vehículo no está disponible para alquilarse (estado actual: ${vehiculo.rows[0].estado}).` },
-        { status: 409 }
-      );
+    const now = new Date();
+    const hoyISO = toDateISO(now);
+    const fechaInicioISO = fecha_entrega_input ? toDateISO(fecha_entrega_input) : hoyISO;
+
+    let diasNum = dias !== undefined && dias !== null && dias !== '' ? parseInt(dias, 10) : null;
+    let fechaFinISO = fecha_devolucion_input ? toDateISO(fecha_devolucion_input) : null;
+
+    if (fechaFinISO) {
+      if (fechaFinISO < fechaInicioISO) {
+        return NextResponse.json(
+          { error: 'La fecha de devolución no puede ser anterior a la fecha de entrega.' },
+          { status: 400 }
+        );
+      }
+      if (!Number.isInteger(diasNum) || diasNum <= 0) {
+        diasNum = calcularDiasEntreFechas(fechaInicioISO, fechaFinISO);
+      }
+    } else {
+      if (!Number.isInteger(diasNum) || diasNum <= 0) {
+        return NextResponse.json(
+          { error: 'Debes indicar los días o el rango de fechas del alquiler.' },
+          { status: 400 }
+        );
+      }
+      const [y, m, d] = fechaInicioISO.split('-').map(Number);
+      const finDate = new Date(Date.UTC(y, m - 1, d + diasNum));
+      fechaFinISO = finDate.toISOString().slice(0, 10);
     }
 
     const cliente = await db.query('SELECT id FROM clientes WHERE id = $1', [cliente_id]);
@@ -99,17 +120,23 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Cliente no encontrado.' }, { status: 404 });
     }
 
+    // Validar disponibilidad del vehículo por fechas en el calendario (evita duplicar días alquilados)
+    const disp = await verificarDisponibilidadFechas(vehiculo_id, fechaInicioISO, fechaFinISO);
+    if (!disp.disponible) {
+      return NextResponse.json(
+        { error: disp.error, conflictos: disp.conflictos },
+        { status: disp.status || 409 }
+      );
+    }
+
     let firmaUrl = null;
     if (firmaFile && typeof firmaFile === 'object' && firmaFile.size > 0) {
       firmaUrl = await saveSignatureFile(firmaFile, `firma-${Date.now()}.png`);
     }
 
-    const now = new Date();
-    const fechaEntrega = now.toISOString().replace('T', ' ').slice(0, 19);
-    const fechaDevolucion = new Date(now.getTime() + diasNum * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .replace('T', ' ')
-      .slice(0, 19);
+    const horaActual = now.toISOString().slice(11, 19);
+    const fechaEntrega = `${fechaInicioISO} ${horaActual}`;
+    const fechaDevolucion = `${fechaFinISO} ${horaActual}`;
 
     const result = await db.query(
       `INSERT INTO alquileres
@@ -122,14 +149,14 @@ export async function POST(request) {
         fechaEntrega,
         fechaDevolucion,
         diasNum,
-        vehiculo.rows[0].precio_dia,
+        disp.vehiculo.precio_dia,
         firmaUrl,
         observaciones || null,
       ]
     );
 
-    // Asegurar sincronización del vehículo a 'alquilado'
-    await db.query(`UPDATE vehiculos SET estado = 'alquilado' WHERE id = $1`, [vehiculo_id]);
+    // Sincronizar estado general del vehículo
+    await sincronizarEstadoVehiculoHoy(vehiculo_id);
 
     return NextResponse.json(result.rows[0], { status: 201 });
   } catch (err) {

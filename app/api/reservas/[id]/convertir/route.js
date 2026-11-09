@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { handleApiError } from '@/lib/errors';
+import {
+  toDateISO,
+  calcularDiasEntreFechas,
+  verificarDisponibilidadFechas,
+  sincronizarEstadoVehiculoHoy,
+} from '@/lib/calendarioDb';
 
 export async function POST(request, { params }) {
   try {
@@ -22,24 +28,29 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: 'Esta reserva ya fue convertida o cancelada.' }, { status: 409 });
     }
 
-    const vehiculo = await db.query('SELECT id, precio_dia, estado FROM vehiculos WHERE id = $1', [reserva.vehiculo_id]);
-    if (vehiculo.rows.length === 0) {
-      return NextResponse.json({ error: 'El vehículo de la reserva ya no existe.' }, { status: 404 });
+    const fInicio = toDateISO(reserva.fecha_inicio);
+    const fFin = toDateISO(reserva.fecha_fin);
+
+    // Verificar que el vehículo esté disponible en esas fechas (excluyendo esta misma reserva)
+    const disp = await verificarDisponibilidadFechas(reserva.vehiculo_id, fInicio, fFin, {
+      excluirReservaId: reserva.id,
+    });
+    if (!disp.disponible) {
+      return NextResponse.json(
+        { error: disp.error, conflictos: disp.conflictos },
+        { status: disp.status || 409 }
+      );
     }
 
     let diasNum = parseInt(dias, 10);
     if (!Number.isInteger(diasNum) || diasNum <= 0) {
-      const start = new Date(reserva.fecha_inicio);
-      const end = new Date(reserva.fecha_fin);
-      diasNum = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+      diasNum = calcularDiasEntreFechas(fInicio, fFin);
     }
 
     const now = new Date();
-    const fechaEntrega = now.toISOString().replace('T', ' ').slice(0, 19);
-    const fechaDevolucion = new Date(now.getTime() + diasNum * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .replace('T', ' ')
-      .slice(0, 19);
+    const horaActual = now.toISOString().slice(11, 19);
+    const fechaEntrega = `${fInicio} ${horaActual}`;
+    const fechaDevolucion = `${fFin} ${horaActual}`;
 
     // Crear el alquiler
     const alquiler = await db.query(
@@ -53,7 +64,7 @@ export async function POST(request, { params }) {
         fechaEntrega,
         fechaDevolucion,
         diasNum,
-        vehiculo.rows[0].precio_dia,
+        disp.vehiculo.precio_dia,
         `Convertido desde la reserva #${reserva.id}.`,
         reserva.id,
       ]
@@ -73,8 +84,8 @@ export async function POST(request, { params }) {
       [alquilerCreado.id, id]
     );
 
-    // Sincronizar estado del vehículo a 'alquilado'
-    await db.query(`UPDATE vehiculos SET estado = 'alquilado' WHERE id = $1`, [reserva.vehiculo_id]);
+    // Sincronizar estado del vehículo
+    await sincronizarEstadoVehiculoHoy(reserva.vehiculo_id);
 
     return NextResponse.json({
       reserva: reservaActualizada.rows[0],

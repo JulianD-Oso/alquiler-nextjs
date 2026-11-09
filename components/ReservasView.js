@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { fmtCOP, estadoLabel, fmtFecha } from '@/lib/format';
+import CalendarioDisponibilidad from '@/components/CalendarioDisponibilidad';
 
 export default function ReservasView({ showToast }) {
   const [reservas, setReservas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [estado, setEstado] = useState('activa');
+  const [calRefresh, setCalRefresh] = useState(0);
 
   // Modal Nueva Reserva
   const [modalOpen, setModalOpen] = useState(false);
@@ -19,6 +21,11 @@ export default function ReservasView({ showToast }) {
     fecha_fin: '',
     monto_abono: '',
     observaciones: '',
+  });
+  const [validacionCal, setValidacionCal] = useState({
+    disponible: true,
+    conflictos: [],
+    mensaje: '',
   });
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
@@ -67,8 +74,20 @@ export default function ReservasView({ showToast }) {
     }
   }
 
+  const handleSelectRangoReserva = useCallback((inicio, fin) => {
+    setForm((prev) => ({
+      ...prev,
+      fecha_inicio: inicio,
+      fecha_fin: fin,
+    }));
+  }, []);
+
   async function guardarReserva(e) {
     e.preventDefault();
+    if (!validacionCal.disponible) {
+      setFormError(validacionCal.mensaje || 'El vehículo no está disponible en las fechas seleccionadas.');
+      return;
+    }
     setSaving(true);
     setFormError('');
 
@@ -84,6 +103,7 @@ export default function ReservasView({ showToast }) {
       showToast('Reserva creada exitosamente.', 'ok');
       setModalOpen(false);
       setEstado('activa');
+      setCalRefresh((r) => r + 1);
       cargarReservas();
     } catch (err) {
       setFormError(err.message);
@@ -100,6 +120,7 @@ export default function ReservasView({ showToast }) {
       if (!res.ok) throw new Error(data.error || 'Error al convertir');
 
       showToast('Reserva convertida en alquiler activo exitosamente.', 'ok');
+      setCalRefresh((r) => r + 1);
       cargarReservas();
     } catch (err) {
       showToast(err.message, 'error');
@@ -114,6 +135,7 @@ export default function ReservasView({ showToast }) {
       if (!res.ok) throw new Error(data.error || 'Error al cancelar');
 
       showToast('Reserva cancelada.', 'ok');
+      setCalRefresh((r) => r + 1);
       cargarReservas();
     } catch (err) {
       showToast(err.message, 'error');
@@ -121,8 +143,15 @@ export default function ReservasView({ showToast }) {
   }
 
   return (
-    <div className="card">
-      <div className="toolbar">
+    <>
+      <CalendarioDisponibilidad
+        showToast={showToast}
+        refreshTrigger={calRefresh}
+        onEstadoActualizado={cargarReservas}
+      />
+
+      <div className="card">
+        <div className="toolbar">
         <div className="toolbar-left">
           <select className="filter-select" value={estado} onChange={(e) => setEstado(e.target.value)}>
             <option value="activa">Reservas activas</option>
@@ -279,6 +308,25 @@ export default function ReservasView({ showToast }) {
                 </div>
               </div>
 
+              {form.vehiculo_id && (
+                <CalendarioDisponibilidad
+                  showToast={showToast}
+                  vehiculoIdForzado={form.vehiculo_id}
+                  modoSelector={true}
+                  fechaInicioSeleccionada={form.fecha_inicio}
+                  fechaFinSeleccionada={form.fecha_fin}
+                  onSelectRango={handleSelectRangoReserva}
+                  onValidacionChange={setValidacionCal}
+                  refreshTrigger={calRefresh}
+                />
+              )}
+
+              {!validacionCal.disponible && (
+                <div className="cal-alert-conflict" style={{ marginTop: '12px' }}>
+                  ⚠️ <strong>Días no disponibles:</strong> {validacionCal.mensaje}
+                </div>
+              )}
+
               <div className="field" style={{ marginTop: '12px' }}>
                 <label>Observaciones</label>
                 <textarea
@@ -292,7 +340,7 @@ export default function ReservasView({ showToast }) {
               {formError && <div className="form-msg error" style={{ marginTop: '10px' }}>{formError}</div>}
 
               <div className="form-actions">
-                <button type="submit" className="btn btn-primary" disabled={saving}>
+                <button type="submit" className="btn btn-primary" disabled={saving || !validacionCal.disponible}>
                   {saving ? 'Guardando reserva…' : 'Crear reserva'}
                 </button>
                 <button type="button" className="btn btn-ghost" onClick={() => setModalOpen(false)}>
@@ -303,6 +351,7 @@ export default function ReservasView({ showToast }) {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

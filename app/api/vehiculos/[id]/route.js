@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { handleApiError } from '@/lib/errors';
 
-const ESTADOS_MANUALES = ['disponible', 'mantenimiento', 'fuera_de_servicio'];
+const ESTADOS_MANUALES = ['disponible', 'alquilado', 'mantenimiento', 'fuera_de_servicio'];
 
 export async function GET(request, { params }) {
   try {
@@ -39,17 +39,23 @@ export async function PUT(request, { params }) {
     }
 
     if (estado !== undefined && estado !== actual.rows[0].estado) {
-      if (actual.rows[0].estado === 'alquilado') {
-        return NextResponse.json(
-          { error: "No puedes cambiar manualmente el estado de un vehículo alquilado. Finaliza su alquiler en 'Alquileres'." },
-          { status: 409 }
-        );
-      }
       if (!ESTADOS_MANUALES.includes(estado)) {
         return NextResponse.json(
-          { error: `Estado inválido. Los estados manuales permitidos son: ${ESTADOS_MANUALES.join(', ')}.` },
+          { error: `Estado inválido. Los estados permitidos son: ${ESTADOS_MANUALES.join(', ')}.` },
           { status: 400 }
         );
+      }
+      if (actual.rows[0].estado === 'alquilado' && estado === 'disponible') {
+        const alqActivos = await db.query(
+          `SELECT id FROM alquileres WHERE vehiculo_id = $1 AND estado = 'activo' LIMIT 1`,
+          [id]
+        );
+        if (alqActivos.rows.length > 0) {
+          return NextResponse.json(
+            { error: "Este vehículo tiene un contrato de alquiler activo. Finaliza primero su alquiler en 'Alquileres'." },
+            { status: 409 }
+          );
+        }
       }
     }
 

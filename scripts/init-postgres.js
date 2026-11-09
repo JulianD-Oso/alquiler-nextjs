@@ -107,7 +107,20 @@ CREATE TABLE IF NOT EXISTS gastos (
 
 CREATE INDEX IF NOT EXISTS idx_gastos_vehiculo ON gastos(vehiculo_id);
 
--- 7. VISTA SALDO
+-- 7. CALENDARIO DE DISPONIBILIDAD POR VEHÍCULO Y DÍA
+CREATE TABLE IF NOT EXISTS calendario_vehiculos (
+    id SERIAL PRIMARY KEY,
+    vehiculo_id INTEGER NOT NULL REFERENCES vehiculos(id) ON DELETE CASCADE,
+    fecha DATE NOT NULL,
+    estado VARCHAR(20) NOT NULL CHECK (estado IN ('disponible', 'alquilado', 'mantenimiento')),
+    observaciones TEXT,
+    creado_en TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (vehiculo_id, fecha)
+);
+
+CREATE INDEX IF NOT EXISTS idx_calendario_vehiculo_fecha ON calendario_vehiculos(vehiculo_id, fecha);
+
+-- 8. VISTA SALDO
 CREATE OR REPLACE VIEW alquileres_saldo AS
 SELECT
     a.id AS alquiler_id,

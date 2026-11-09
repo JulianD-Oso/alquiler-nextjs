@@ -50,6 +50,7 @@ export async function POST(request) {
       marca_modelo,
       placa,
       anio,
+      estado,
       observaciones,
       propietario_nombre,
       propietario_identificacion,
@@ -75,8 +76,8 @@ export async function POST(request) {
       try {
         const result = await db.query(
           `INSERT INTO vehiculos
-             (codigo, tipo, marca_modelo, placa, anio, observaciones, propietario_nombre, propietario_identificacion, precio_dia)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+             (codigo, tipo, marca_modelo, placa, anio, estado, observaciones, propietario_nombre, propietario_identificacion, precio_dia)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
            RETURNING *`,
           [
             codigo,
@@ -84,6 +85,7 @@ export async function POST(request) {
             marca_modelo.trim(),
             placa.trim().toUpperCase(),
             anio || null,
+            estado || 'disponible',
             observaciones || null,
             propietario_nombre || null,
             propietario_identificacion || null,

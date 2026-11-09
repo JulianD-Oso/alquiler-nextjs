@@ -276,21 +276,18 @@ export default function VehiculosView({ showToast }) {
                     onChange={(e) => setForm({ ...form, precio_dia: e.target.value })}
                   />
                 </div>
-                {editingId && (
-                  <div className="field">
-                    <label>Estado</label>
-                    <select
-                      value={form.estado}
-                      disabled={form.estado === 'alquilado'}
-                      onChange={(e) => setForm({ ...form, estado: e.target.value })}
-                    >
-                      <option value="disponible">Disponible</option>
-                      <option value="mantenimiento">Mantenimiento</option>
-                      <option value="fuera_de_servicio">Fuera de servicio</option>
-                      {form.estado === 'alquilado' && <option value="alquilado">Alquilado (gestionado en alquileres)</option>}
-                    </select>
-                  </div>
-                )}
+                <div className="field">
+                  <label>Estado *</label>
+                  <select
+                    value={form.estado}
+                    onChange={(e) => setForm({ ...form, estado: e.target.value })}
+                  >
+                    <option value="disponible">Disponible</option>
+                    <option value="alquilado">Alquilado</option>
+                    <option value="mantenimiento">Mantenimiento</option>
+                    <option value="fuera_de_servicio">Fuera de servicio</option>
+                  </select>
+                </div>
                 <div className="field">
                   <label>Propietario (si es tercero)</label>
                   <input

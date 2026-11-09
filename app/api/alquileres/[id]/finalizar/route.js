@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { handleApiError } from '@/lib/errors';
+import { sincronizarEstadoVehiculoHoy } from '@/lib/calendarioDb';
 
 export async function PUT(request, { params }) {
   try {
@@ -24,7 +25,7 @@ export async function PUT(request, { params }) {
     }
 
     const alquiler = result.rows[0];
-    await db.query(`UPDATE vehiculos SET estado = 'disponible' WHERE id = $1`, [alquiler.vehiculo_id]);
+    await sincronizarEstadoVehiculoHoy(alquiler.vehiculo_id);
 
     return NextResponse.json(alquiler);
   } catch (err) {

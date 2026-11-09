@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { handleApiError } from '@/lib/errors';
+import { verificarDisponibilidadFechas } from '@/lib/calendarioDb';
 
 export async function GET(request) {
   try {
@@ -71,26 +72,17 @@ export async function POST(request) {
       return NextResponse.json({ error: 'fecha_fin no puede ser anterior a fecha_inicio.' }, { status: 400 });
     }
 
-    const vehiculo = await db.query('SELECT id FROM vehiculos WHERE id = $1', [vehiculo_id]);
-    if (vehiculo.rows.length === 0) {
-      return NextResponse.json({ error: 'Vehículo no encontrado.' }, { status: 404 });
-    }
     const cliente = await db.query('SELECT id FROM clientes WHERE id = $1', [cliente_id]);
     if (cliente.rows.length === 0) {
       return NextResponse.json({ error: 'Cliente no encontrado.' }, { status: 404 });
     }
 
-    // Verificar si hay solapamiento de fechas con otra reserva activa
-    const solapadas = await db.query(
-      `SELECT id FROM reservas
-       WHERE vehiculo_id = $1 AND estado = 'activa'
-         AND fecha_inicio <= $3 AND fecha_fin >= $2`,
-      [vehiculo_id, fecha_inicio, fecha_fin]
-    );
-    if (solapadas.rows.length > 0) {
+    // Verificar disponibilidad contra alquileres activos, reservas activas y días en mantenimiento
+    const disp = await verificarDisponibilidadFechas(vehiculo_id, fecha_inicio, fecha_fin);
+    if (!disp.disponible) {
       return NextResponse.json(
-        { error: 'Ese vehículo ya tiene una reserva activa que se solapa con esas fechas.' },
-        { status: 409 }
+        { error: disp.error, conflictos: disp.conflictos },
+        { status: disp.status || 409 }
       );
     }
 

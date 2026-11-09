@@ -1,12 +1,32 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { fmtCOP, fmtFecha } from '@/lib/format';
+import { useState, useEffect, useCallback } from 'react';
+import { fmtCOP, fmtFecha, estadoLabel } from '@/lib/format';
+import CalendarioDisponibilidad from '@/components/CalendarioDisponibilidad';
+
+function hoyISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function sumarDiasISO(fechaStr, dias) {
+  const [y, m, d] = fechaStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + Number(dias || 1)));
+  return dt.toISOString().slice(0, 10);
+}
+
+function diffDiasISO(inicioStr, finStr) {
+  if (!inicioStr || !finStr) return 1;
+  const [y1, m1, d1] = inicioStr.split('-').map(Number);
+  const [y2, m2, d2] = finStr.split('-').map(Number);
+  const diff = Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000);
+  return Math.max(1, diff);
+}
 
 export default function AlquileresView({ showToast }) {
   const [vista, setVista] = useState('activo'); // 'activo' | 'historial'
   const [alquileres, setAlquileres] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [calRefresh, setCalRefresh] = useState(0);
 
   // Modal Nuevo Alquiler
   const [modalNuevoOpen, setModalNuevoOpen] = useState(false);
@@ -15,8 +35,15 @@ export default function AlquileresView({ showToast }) {
   const [formNuevo, setFormNuevo] = useState({
     cliente_id: '',
     vehiculo_id: '',
+    fecha_entrega: hoyISO(),
+    fecha_devolucion_programada: sumarDiasISO(hoyISO(), 1),
     dias: 1,
     observaciones: '',
+  });
+  const [validacionCal, setValidacionCal] = useState({
+    disponible: true,
+    conflictos: [],
+    mensaje: '',
   });
   const [firmaFile, setFirmaFile] = useState(null);
   const [savingNuevo, setSavingNuevo] = useState(false);
@@ -57,25 +84,87 @@ export default function AlquileresView({ showToast }) {
   async function abrirNuevoAlquiler() {
     setErrorNuevo('');
     setFirmaFile(null);
-    setFormNuevo({ cliente_id: '', vehiculo_id: '', dias: 1, observaciones: '' });
+    const hoy = hoyISO();
+    setFormNuevo({
+      cliente_id: '',
+      vehiculo_id: '',
+      fecha_entrega: hoy,
+      fecha_devolucion_programada: sumarDiasISO(hoy, 1),
+      dias: 1,
+      observaciones: '',
+    });
+    setValidacionCal({ disponible: true, conflictos: [], mensaje: '' });
 
     try {
       const [resC, resV] = await Promise.all([
         fetch('/api/clientes'),
-        fetch('/api/vehiculos?estado=disponible'),
+        fetch('/api/vehiculos'),
       ]);
       const dataC = await resC.json();
       const dataV = await resV.json();
       setClientes(dataC);
-      setVehiculosDisponibles(dataV);
+      setVehiculosDisponibles(
+        Array.isArray(dataV) ? dataV.filter((v) => v.estado !== 'fuera_de_servicio') : []
+      );
       setModalNuevoOpen(true);
     } catch (err) {
       showToast('Error al preparar formulario: ' + err.message, 'error');
     }
   }
 
+  function handleFechaEntregaChange(nuevaEntrega) {
+    let nuevaDev = formNuevo.fecha_devolucion_programada;
+    if (!nuevaDev || nuevaDev <= nuevaEntrega) {
+      nuevaDev = sumarDiasISO(nuevaEntrega, formNuevo.dias || 1);
+    }
+    const nuevosDias = diffDiasISO(nuevaEntrega, nuevaDev);
+    setFormNuevo({
+      ...formNuevo,
+      fecha_entrega: nuevaEntrega,
+      fecha_devolucion_programada: nuevaDev,
+      dias: nuevosDias,
+    });
+  }
+
+  function handleFechaDevolucionChange(nuevaDev) {
+    const entrega = formNuevo.fecha_entrega || hoyISO();
+    const finValida = nuevaDev < entrega ? entrega : nuevaDev;
+    const nuevosDias = diffDiasISO(entrega, finValida);
+    setFormNuevo({
+      ...formNuevo,
+      fecha_devolucion_programada: finValida,
+      dias: nuevosDias,
+    });
+  }
+
+  function handleDiasChange(val) {
+    const diasNum = Math.max(1, parseInt(val, 10) || 1);
+    const entrega = formNuevo.fecha_entrega || hoyISO();
+    const nuevaDev = sumarDiasISO(entrega, diasNum);
+    setFormNuevo({
+      ...formNuevo,
+      dias: val,
+      fecha_devolucion_programada: nuevaDev,
+    });
+  }
+
+  const handleSelectRangoCalendario = useCallback((inicio, fin) => {
+    const nuevosDias = diffDiasISO(inicio, fin);
+    setFormNuevo((prev) => ({
+      ...prev,
+      fecha_entrega: inicio,
+      fecha_devolucion_programada: fin,
+      dias: nuevosDias,
+    }));
+  }, []);
+
   async function guardarNuevoAlquiler(e) {
     e.preventDefault();
+    if (!validacionCal.disponible) {
+      setErrorNuevo(validacionCal.mensaje || 'El vehículo no está disponible en las fechas seleccionadas.');
+      return;
+    }
+
     setSavingNuevo(true);
     setErrorNuevo('');
 
@@ -83,6 +172,8 @@ export default function AlquileresView({ showToast }) {
       const formData = new FormData();
       formData.append('cliente_id', formNuevo.cliente_id);
       formData.append('vehiculo_id', formNuevo.vehiculo_id);
+      formData.append('fecha_entrega', formNuevo.fecha_entrega);
+      formData.append('fecha_devolucion_programada', formNuevo.fecha_devolucion_programada);
       formData.append('dias', formNuevo.dias);
       if (formNuevo.observaciones) formData.append('observaciones', formNuevo.observaciones);
       if (firmaFile) formData.append('firma', firmaFile);
@@ -97,6 +188,7 @@ export default function AlquileresView({ showToast }) {
       showToast('Alquiler creado exitosamente.', 'ok');
       setModalNuevoOpen(false);
       setVista('activo');
+      setCalRefresh((r) => r + 1);
       cargarAlquileres();
     } catch (err) {
       setErrorNuevo(err.message);
@@ -160,6 +252,7 @@ export default function AlquileresView({ showToast }) {
       if (!res.ok) throw new Error(data.error || 'Error al finalizar');
       showToast('Alquiler finalizado correctamente.', 'ok');
       if (modalDetalleOpen) setModalDetalleOpen(false);
+      setCalRefresh((r) => r + 1);
       cargarAlquileres();
     } catch (err) {
       showToast(err.message, 'error');
@@ -171,8 +264,15 @@ export default function AlquileresView({ showToast }) {
   const totalEstimado = vehiculoSeleccionado ? vehiculoSeleccionado.precio_dia * Number(formNuevo.dias || 1) : 0;
 
   return (
-    <div className="card">
-      <div className="toolbar">
+    <>
+      <CalendarioDisponibilidad
+        showToast={showToast}
+        refreshTrigger={calRefresh}
+        onEstadoActualizado={cargarAlquileres}
+      />
+
+      <div className="card">
+        <div className="toolbar">
         <div className="toolbar-left">
           <select className="filter-select" value={vista} onChange={(e) => setVista(e.target.value)}>
             <option value="activo">Alquileres activos</option>
@@ -262,12 +362,12 @@ export default function AlquileresView({ showToast }) {
       {/* Modal Nuevo Alquiler */}
       {modalNuevoOpen && (
         <div className="modal-overlay open" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) setModalNuevoOpen(false); }}>
-          <div className="modal-card">
+          <div className="modal-card" style={{ maxWidth: '680px' }}>
             <div className="modal-head">
               <h2>Nuevo alquiler</h2>
               <button className="modal-close" onClick={() => setModalNuevoOpen(false)}>✕</button>
             </div>
-            <p className="sub">Asigna un vehículo disponible a un cliente y registra el acuerdo</p>
+            <p className="sub">Selecciona el vehículo y las fechas para verificar que los días estén disponibles y no se dupliquen</p>
 
             <form onSubmit={guardarNuevoAlquiler}>
               <div className="form-grid cols-2">
@@ -287,7 +387,7 @@ export default function AlquileresView({ showToast }) {
                   </select>
                 </div>
                 <div className="field">
-                  <label>Vehículo Disponible *</label>
+                  <label>Vehículo *</label>
                   <select
                     required
                     value={formNuevo.vehiculo_id}
@@ -296,10 +396,29 @@ export default function AlquileresView({ showToast }) {
                     <option value="">Selecciona un vehículo…</option>
                     {vehiculosDisponibles.map((v) => (
                       <option key={v.id} value={v.id}>
-                        {v.codigo} — {v.marca_modelo} ({v.placa}) — {fmtCOP.format(v.precio_dia)}/día
+                        {v.codigo} — {v.marca_modelo} ({v.placa}) — {fmtCOP.format(v.precio_dia)}/día [{estadoLabel(v.estado)}]
                       </option>
                     ))}
                   </select>
+                </div>
+                <div className="field">
+                  <label>Fecha de Entrega *</label>
+                  <input
+                    type="date"
+                    required
+                    value={formNuevo.fecha_entrega}
+                    onChange={(e) => handleFechaEntregaChange(e.target.value)}
+                  />
+                </div>
+                <div className="field">
+                  <label>Fecha de Devolución *</label>
+                  <input
+                    type="date"
+                    required
+                    min={formNuevo.fecha_entrega}
+                    value={formNuevo.fecha_devolucion_programada}
+                    onChange={(e) => handleFechaDevolucionChange(e.target.value)}
+                  />
                 </div>
                 <div className="field">
                   <label>Número de Días *</label>
@@ -308,7 +427,7 @@ export default function AlquileresView({ showToast }) {
                     required
                     min="1"
                     value={formNuevo.dias}
-                    onChange={(e) => setFormNuevo({ ...formNuevo, dias: e.target.value })}
+                    onChange={(e) => handleDiasChange(e.target.value)}
                   />
                 </div>
                 <div className="field">
@@ -320,6 +439,25 @@ export default function AlquileresView({ showToast }) {
                   />
                 </div>
               </div>
+
+              {formNuevo.vehiculo_id && (
+                <CalendarioDisponibilidad
+                  showToast={showToast}
+                  vehiculoIdForzado={formNuevo.vehiculo_id}
+                  modoSelector={true}
+                  fechaInicioSeleccionada={formNuevo.fecha_entrega}
+                  fechaFinSeleccionada={formNuevo.fecha_devolucion_programada}
+                  onSelectRango={handleSelectRangoCalendario}
+                  onValidacionChange={setValidacionCal}
+                  refreshTrigger={calRefresh}
+                />
+              )}
+
+              {!validacionCal.disponible && (
+                <div className="cal-alert-conflict" style={{ marginTop: '12px' }}>
+                  ⚠️ <strong>Días no disponibles:</strong> {validacionCal.mensaje}
+                </div>
+              )}
 
               <div className="field" style={{ marginTop: '12px' }}>
                 <label>Firma digital / Comprobante de acuerdo (imagen)</label>
@@ -343,7 +481,11 @@ export default function AlquileresView({ showToast }) {
               {errorNuevo && <div className="form-msg error" style={{ marginTop: '10px' }}>{errorNuevo}</div>}
 
               <div className="form-actions">
-                <button type="submit" className="btn btn-primary" disabled={savingNuevo}>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={savingNuevo || !validacionCal.disponible}
+                >
                   {savingNuevo ? 'Creando alquiler…' : 'Crear alquiler'}
                 </button>
                 <button type="button" className="btn btn-ghost" onClick={() => setModalNuevoOpen(false)}>
@@ -487,6 +629,7 @@ export default function AlquileresView({ showToast }) {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
